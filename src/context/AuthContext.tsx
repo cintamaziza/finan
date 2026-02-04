@@ -122,11 +122,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         initializeAuth();
 
-        // FAILSAFE: Guarantee loading stops after 20 seconds no matter what
+        // FAILSAFE: Guarantee loading stops after 8 seconds no matter what
         const failsafeTimeout = setTimeout(() => {
             console.log('⚠️ Failsafe timeout triggered - forcing loading to complete');
             setIsLoading(false);
-        }, 20000);
+        }, 8000);
 
         // Listen for auth state changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
