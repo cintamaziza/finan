@@ -39,15 +39,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [user, setUser] = useState<AuthUser | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Fetch avatar from profiles table
+    // Fetch avatar from profiles table with timeout
     const fetchAvatarUrl = useCallback(async (userId: string): Promise<string | null> => {
         try {
-            const { data } = await supabase
-                .from('profiles')
-                .select('avatar_url')
-                .eq('id', userId)
-                .single();
-            return data?.avatar_url || null;
+            // Add timeout to prevent hanging
+            const timeoutPromise = new Promise<null>((resolve) =>
+                setTimeout(() => resolve(null), 3000)
+            );
+
+            const fetchPromise = (async () => {
+                const { data } = await supabase
+                    .from('profiles')
+                    .select('avatar_url')
+                    .eq('id', userId)
+                    .single();
+                return data?.avatar_url || null;
+            })();
+
+            return await Promise.race([fetchPromise, timeoutPromise]);
         } catch {
             return null;
         }
