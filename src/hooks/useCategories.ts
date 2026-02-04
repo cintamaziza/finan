@@ -18,13 +18,20 @@ export const useCategories = () => {
 
         try {
             setIsLoading(true);
+            console.log('📂 Fetching categories for user:', user.id);
+
             const { data, error } = await supabase
                 .from('categories')
                 .select('*')
                 .or(`user_id.eq.${user.id},is_default.eq.true`)
                 .order('name');
 
-            if (error) throw error;
+            console.log('📂 Categories result:', { data, error });
+
+            if (error) {
+                console.error('📂 Categories error details:', error.message, error.code, error.details);
+                throw error;
+            }
 
             setCategories(data || []);
             setError(null);
