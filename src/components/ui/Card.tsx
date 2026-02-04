@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { classNames } from '../../lib/utils';
 
 interface CardProps {
@@ -10,7 +10,7 @@ interface CardProps {
     onClick?: () => void;
 }
 
-export const Card: React.FC<CardProps> = ({
+export const Card: React.FC<CardProps> = memo(({
     children,
     className,
     padding = 'md',
@@ -40,7 +40,9 @@ export const Card: React.FC<CardProps> = ({
             {children}
         </div>
     );
-};
+});
+
+Card.displayName = 'Card';
 
 interface CardHeaderProps {
     title: string;
@@ -49,7 +51,7 @@ interface CardHeaderProps {
     className?: string;
 }
 
-export const CardHeader: React.FC<CardHeaderProps> = ({
+export const CardHeader: React.FC<CardHeaderProps> = memo(({
     title,
     subtitle,
     action,
@@ -66,6 +68,9 @@ export const CardHeader: React.FC<CardHeaderProps> = ({
             {action && <div>{action}</div>}
         </div>
     );
-};
+});
+
+CardHeader.displayName = 'CardHeader';
 
 export default Card;
+

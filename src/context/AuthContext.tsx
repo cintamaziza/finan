@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import type { AuthUser } from '../types';
 import type { User, Session, AuthError } from '@supabase/supabase-js';
@@ -210,24 +210,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(null);
     };
 
-    const updateAvatar = (url: string | null) => {
+    const updateAvatar = useCallback((url: string | null) => {
         if (user) {
             setUser({ ...user, avatar_url: url });
         }
-    };
+    }, [user]);
+
+    const contextValue = useMemo(() => ({
+        user,
+        isLoading,
+        isAuthenticated: !!user,
+        login,
+        register,
+        logout,
+        updateAvatar,
+    }), [user, isLoading, login, register, logout, updateAvatar]);
 
     return (
-        <AuthContext.Provider
-            value={{
-                user,
-                isLoading,
-                isAuthenticated: !!user,
-                login,
-                register,
-                logout,
-                updateAvatar,
-            }}
-        >
+        <AuthContext.Provider value={contextValue}>
             {children}
         </AuthContext.Provider>
     );

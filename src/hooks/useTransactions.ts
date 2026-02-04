@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { logAuditAction } from './useAuditLogs';
@@ -213,13 +213,19 @@ export const useTransactions = (filters?: {
         return { success: true };
     };
 
-    const totalIncome = transactions
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + Number(t.amount), 0);
+    const totalIncome = useMemo(() =>
+        transactions
+            .filter(t => t.type === 'income')
+            .reduce((sum, t) => sum + Number(t.amount), 0),
+        [transactions]
+    );
 
-    const totalExpenses = transactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + Number(t.amount), 0);
+    const totalExpenses = useMemo(() =>
+        transactions
+            .filter(t => t.type === 'expense')
+            .reduce((sum, t) => sum + Number(t.amount), 0),
+        [transactions]
+    );
 
     return {
         transactions,

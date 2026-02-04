@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Link } from 'react-router-dom';
 import {
     TrendingUp,
@@ -29,13 +29,13 @@ import { Card, CardHeader, Progress, Badge, Button } from '../components/ui';
 import { formatCurrency, getRelativeDate } from '../lib/utils';
 import { useDashboard } from '../hooks';
 
-const StatCard: React.FC<{
+const StatCard = memo<{
     title: string;
     value: string;
     change?: number;
     icon: React.ElementType;
     iconBg: string;
-}> = ({ title, value, change, icon: Icon, iconBg }) => (
+}>(({ title, value, change, icon: Icon, iconBg }) => (
     <Card className="relative overflow-hidden">
         <div className="flex items-start justify-between">
             <div>
@@ -53,7 +53,9 @@ const StatCard: React.FC<{
             </div>
         </div>
     </Card>
-);
+));
+
+StatCard.displayName = 'StatCard';
 
 export const Dashboard: React.FC = () => {
     const { stats, monthlyChartData, categoryChartData, previousMonthStats, isLoading } = useDashboard();
