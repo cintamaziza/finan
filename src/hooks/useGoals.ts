@@ -30,6 +30,9 @@ export const useGoals = () => {
             setGoals(data || []);
             setError(null);
         } catch (err) {
+            // Ignore AbortError (happens during component remount)
+            if (err instanceof Error && err.name === 'AbortError') return;
+            if (err && typeof err === 'object' && 'message' in err && String(err.message).includes('AbortError')) return;
             console.error('Error fetching goals:', err);
             setError('Failed to load goals');
         } finally {

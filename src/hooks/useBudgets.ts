@@ -67,6 +67,9 @@ export const useBudgets = () => {
             setBudgets(mappedBudgets);
             setError(null);
         } catch (err) {
+            // Ignore AbortError (happens during component remount)
+            if (err instanceof Error && err.name === 'AbortError') return;
+            if (err && typeof err === 'object' && 'message' in err && String(err.message).includes('AbortError')) return;
             console.error('Error fetching budgets:', err);
             setError('Failed to load budgets');
         } finally {
