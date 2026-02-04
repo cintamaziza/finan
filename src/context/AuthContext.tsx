@@ -59,7 +59,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Get initial session
         const initializeAuth = async () => {
             try {
-                const { data: { session } } = await supabase.auth.getSession();
+                console.log('🔄 Initializing auth...');
+
+                // Add timeout to prevent infinite loading
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Auth timeout')), 5000)
+                );
+
+                const sessionPromise = supabase.auth.getSession();
+
+                const { data: { session } } = await Promise.race([
+                    sessionPromise,
+                    timeoutPromise
+                ]) as Awaited<typeof sessionPromise>;
+
+                console.log('🔄 Session result:', session ? 'User found' : 'No session');
+
                 if (!mounted) return;
 
                 if (session?.user) {
@@ -73,7 +88,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     return;
                 }
                 console.error('Error getting session:', error);
+                // Still set loading to false even on error
             } finally {
+                console.log('🔄 Auth initialization complete');
                 if (mounted) {
                     setIsLoading(false);
                 }
