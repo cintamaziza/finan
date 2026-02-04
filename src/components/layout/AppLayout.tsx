@@ -26,20 +26,22 @@ import { useSettings } from '../../context/SettingsContext';
 import { useNotificationAlerts } from '../../hooks/useNotificationAlerts';
 import { classNames } from '../../lib/utils';
 
+import { useTranslation } from '../../hooks/useTranslation';
+
 // Main menu items
-const menuItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
-    { path: '/accounts', label: 'Accounts', icon: Wallet },
-    { path: '/budgets', label: 'Budgets', icon: PieChart },
-    { path: '/goals', label: 'Goals', icon: Target },
-    { path: '/bills', label: 'Bills', icon: Bell },
-    { path: '/reports', label: 'Reports', icon: BarChart3 },
+const getMenuItems = (t: (key: any) => string) => [
+    { path: '/dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { path: '/transactions', label: t('nav.transactions'), icon: ArrowLeftRight },
+    { path: '/accounts', label: t('nav.accounts'), icon: Wallet },
+    { path: '/budgets', label: t('nav.budget'), icon: PieChart },
+    { path: '/goals', label: t('nav.goals'), icon: Target },
+    { path: '/bills', label: t('nav.bills'), icon: Bell },
+    { path: '/reports', label: t('nav.reports'), icon: BarChart3 },
 ];
 
 // General section items
-const generalItems = [
-    { path: '/settings', label: 'Settings', icon: Settings },
+const getGeneralItems = (t: (key: any) => string) => [
+    { path: '/settings', label: t('nav.settings'), icon: Settings },
     { path: '/audit-log', label: 'Audit Log', icon: FileText },
     { path: '/profile', label: 'Profile', icon: User },
 ];
@@ -48,9 +50,13 @@ export const AppLayout: React.FC = () => {
     const { user, logout } = useAuth();
     const { settings, updateSettings } = useSettings();
     const { alerts, unreadCount } = useNotificationAlerts();
+    const { t } = useTranslation();
     const location = useLocation();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+
+    const menuItems = getMenuItems(t);
+    const generalItems = getGeneralItems(t);
 
     const getSeverityIcon = (severity: string) => {
         switch (severity) {
@@ -127,7 +133,7 @@ export const AppLayout: React.FC = () => {
                         className="flex items-center gap-3 px-4 py-3 w-full rounded-xl font-medium text-[var(--color-error)] hover:bg-[var(--color-error)]/10 transition-all"
                     >
                         <LogOut size={20} />
-                        <span>Logout</span>
+                        <span>{t('nav.logout')}</span>
                     </button>
                 </div>
             </aside>
@@ -311,7 +317,7 @@ export const AppLayout: React.FC = () => {
                                 className="flex items-center gap-3 px-4 py-3 w-full rounded-xl font-medium text-[var(--color-error)] hover:bg-[var(--color-error)]/10 transition-all"
                             >
                                 <LogOut size={20} />
-                                <span>Logout</span>
+                                <span>{t('nav.logout')}</span>
                             </button>
                         </div>
                     </aside>

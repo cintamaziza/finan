@@ -19,18 +19,11 @@ import {
 } from 'lucide-react';
 import { Card, Button, Input, Badge } from '../components/ui';
 import { classNames } from '../lib/utils';
-import { defaultCategories } from '../lib/mockData';
 import { useSettings } from '../context/SettingsContext';
 import { useNotification } from '../context/NotificationContext';
-
-const settingsSections = [
-    { id: 'account', label: 'Account', icon: User },
-    { id: 'preferences', label: 'Preferences', icon: Palette },
-    { id: 'categories', label: 'Categories', icon: CreditCard },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'data', label: 'Data Management', icon: Database },
-];
+import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../hooks/useTranslation';
+import { useCategories } from '../hooks/useCategories';
 
 const currencies = [
     { code: 'IDR', name: 'Indonesian Rupiah', symbol: 'Rp' },
@@ -50,18 +43,76 @@ const languages = [
     { code: 'en', name: 'English' },
 ];
 
+// Move settingsSections inside component or functionality that has access to translation
+
 export const Settings: React.FC = () => {
     const [activeSection, setActiveSection] = useState('account');
     const { settings, updateSettings, resetSettings } = useSettings();
-    const { success } = useNotification();
+    const { success, error } = useNotification();
+    const { user, updateProfile } = useAuth();
+    const { expenseCategories, incomeCategories, addCategory, deleteCategory } = useCategories();
+    const { t } = useTranslation();
+
+    const settingsSections = [
+        { id: 'account', label: t('settings.account'), icon: User },
+        { id: 'preferences', label: t('settings.preferences'), icon: Palette },
+        { id: 'categories', label: t('settings.categories'), icon: CreditCard },
+        { id: 'notifications', label: t('settings.notifications'), icon: Bell },
+        { id: 'security', label: t('settings.security'), icon: Shield },
+        { id: 'data', label: t('settings.data'), icon: Database },
+    ];
+
+    // Account Form State
+    const [accountForm, setAccountForm] = useState({
+        full_name: user?.full_name || '',
+        email: user?.email || '',
+    });
+
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+    const handleSaveProfile = async () => {
+        setIsSavingProfile(true);
+        const { error: updateError } = await updateProfile({
+            full_name: accountForm.full_name,
+        });
+
+        if (updateError) {
+            error(t('common.error'), t('common.error'));
+        } else {
+            success(t('common.success'), t('common.success'));
+        }
+        setIsSavingProfile(false);
+    };
 
     const handleSavePreferences = () => {
-        success('Pengaturan Disimpan', 'Preferensi Anda telah berhasil disimpan');
+        success(t('common.success'), t('settings.savePreferences'));
     };
 
     const handleResetSettings = () => {
         resetSettings();
-        success('Pengaturan Direset', 'Semua pengaturan telah dikembalikan ke default');
+        success(t('common.success'), t('settings.resetDefaults'));
+    };
+
+    const handleAddCategory = async (type: 'income' | 'expense') => {
+        const name = window.prompt(`${t('settings.addCategory')} (${type}):`);
+        if (!name) return;
+
+        // Simple random color for now
+        const color = '#' + Math.floor(Math.random() * 16777215).toString(16);
+
+        const { error: addError } = await addCategory({
+            name,
+            type,
+            color,
+            icon: 'Circle', // Default icon
+            is_default: false
+        });
+
+        if (addError) {
+            error(t('common.error'), t('common.error'));
+        } else {
+            success(t('common.success'), t('common.success'));
+        }
     };
 
     const renderContent = () => {
@@ -70,25 +121,40 @@ export const Settings: React.FC = () => {
                 return (
                     <div className="space-y-6">
                         <div>
-                            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-4">Profile Information</h3>
+                            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-4">{t('settings.profileInfo')}</h3>
                             <div className="grid sm:grid-cols-2 gap-4">
-                                <Input label="Full Name" defaultValue="Demo User" />
-                                <Input label="Email" type="email" defaultValue="demo@dimfin.app" />
+                                <Input
+                                    label={t('settings.fullName')}
+                                    value={accountForm.full_name}
+                                    onChange={(e) => setAccountForm({ ...accountForm, full_name: e.target.value })}
+                                />
+                                <Input
+                                    label={t('settings.email')}
+                                    type="email"
+                                    value={accountForm.email}
+                                    disabled
+                                    className="opacity-60 cursor-not-allowed"
+                                />
                             </div>
                         </div>
 
                         <div>
                             <h3 className="text-lg font-semibold text-[var(--color-text)] mb-4">Change Password</h3>
                             <div className="space-y-4 max-w-md">
-                                <Input label="Current Password" type="password" />
-                                <Input label="New Password" type="password" />
-                                <Input label="Confirm New Password" type="password" />
+                                <p className="text-sm text-[var(--color-text-muted)]">
+                                    To change your password, please use the "Forgot Password" functionality on the login page for security reasons.
+                                </p>
                             </div>
                         </div>
 
                         <div className="pt-4 border-t border-[var(--color-border)]">
-                            <Button variant="primary" leftIcon={<Save size={18} />}>
-                                Save Changes
+                            <Button
+                                variant="primary"
+                                leftIcon={<Save size={18} />}
+                                onClick={handleSaveProfile}
+                                isLoading={isSavingProfile}
+                            >
+                                {t('settings.saveChanges')}
                             </Button>
                         </div>
                     </div>
@@ -98,7 +164,7 @@ export const Settings: React.FC = () => {
                 return (
                     <div className="space-y-6">
                         <div>
-                            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-4">Currency</h3>
+                            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-4">{t('settings.currency')}</h3>
                             <div className="grid sm:grid-cols-2 gap-3">
                                 {currencies.map((currency) => (
                                     <button
@@ -127,7 +193,7 @@ export const Settings: React.FC = () => {
                         </div>
 
                         <div>
-                            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-4">Date Format</h3>
+                            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-4">{t('settings.dateFormat')}</h3>
                             <select
                                 className="input max-w-md"
                                 value={settings.dateFormat}
@@ -140,7 +206,7 @@ export const Settings: React.FC = () => {
                         </div>
 
                         <div>
-                            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-4">Theme</h3>
+                            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-4">{t('settings.theme')}</h3>
                             <div className="flex gap-3">
                                 <button
                                     onClick={() => updateSettings({ theme: 'light' })}
@@ -152,7 +218,7 @@ export const Settings: React.FC = () => {
                                     )}
                                 >
                                     <Sun size={20} />
-                                    <span className="font-medium">Light</span>
+                                    <span className="font-medium">{t('settings.light')}</span>
                                 </button>
                                 <button
                                     onClick={() => updateSettings({ theme: 'dark' })}
@@ -164,13 +230,13 @@ export const Settings: React.FC = () => {
                                     )}
                                 >
                                     <Moon size={20} />
-                                    <span className="font-medium">Dark</span>
+                                    <span className="font-medium">{t('settings.dark')}</span>
                                 </button>
                             </div>
                         </div>
 
                         <div>
-                            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-4">Language</h3>
+                            <h3 className="text-lg font-semibold text-[var(--color-text)] mb-4">{t('settings.language')}</h3>
                             <select
                                 className="input max-w-md"
                                 value={settings.language}
@@ -184,10 +250,10 @@ export const Settings: React.FC = () => {
 
                         <div className="pt-4 border-t border-[var(--color-border)] flex gap-3">
                             <Button variant="primary" leftIcon={<Save size={18} />} onClick={handleSavePreferences}>
-                                Save Preferences
+                                {t('settings.savePreferences')}
                             </Button>
                             <Button variant="ghost" leftIcon={<RotateCcw size={18} />} onClick={handleResetSettings}>
-                                Reset to Default
+                                {t('settings.resetDefaults')}
                             </Button>
                         </div>
                     </div>
@@ -197,11 +263,11 @@ export const Settings: React.FC = () => {
                 return (
                     <div className="space-y-6">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold text-[var(--color-text)]">Expense Categories</h3>
-                            <Button variant="secondary" size="sm">Add Category</Button>
+                            <h3 className="text-lg font-semibold text-[var(--color-text)]">{t('settings.expenseCategories')}</h3>
+                            <Button variant="secondary" size="sm" onClick={() => handleAddCategory('expense')}>{t('settings.addCategory')}</Button>
                         </div>
                         <div className="grid sm:grid-cols-2 gap-3">
-                            {defaultCategories.filter(c => c.type === 'expense').map((cat) => (
+                            {expenseCategories.map((cat) => (
                                 <div
                                     key={cat.id}
                                     className="flex items-center justify-between p-4 bg-[var(--color-secondary)] rounded-xl"
@@ -218,19 +284,24 @@ export const Settings: React.FC = () => {
                                         </div>
                                         <span className="font-medium text-[var(--color-text)]">{cat.name}</span>
                                     </div>
-                                    {cat.is_default && (
-                                        <Badge variant="default" size="sm">Default</Badge>
+                                    {!cat.is_default && (
+                                        <button
+                                            onClick={() => deleteCategory(cat.id)}
+                                            className="text-[var(--color-error)] hover:bg-[var(--color-error)]/10 p-2 rounded-lg"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
                                     )}
                                 </div>
                             ))}
                         </div>
 
                         <div className="flex items-center justify-between mt-8">
-                            <h3 className="text-lg font-semibold text-[var(--color-text)]">Income Categories</h3>
-                            <Button variant="secondary" size="sm">Add Category</Button>
+                            <h3 className="text-lg font-semibold text-[var(--color-text)]">{t('settings.incomeCategories')}</h3>
+                            <Button variant="secondary" size="sm" onClick={() => handleAddCategory('income')}>{t('settings.addCategory')}</Button>
                         </div>
                         <div className="grid sm:grid-cols-2 gap-3">
-                            {defaultCategories.filter(c => c.type === 'income').map((cat) => (
+                            {incomeCategories.map((cat) => (
                                 <div
                                     key={cat.id}
                                     className="flex items-center justify-between p-4 bg-[var(--color-secondary)] rounded-xl"
@@ -247,6 +318,14 @@ export const Settings: React.FC = () => {
                                         </div>
                                         <span className="font-medium text-[var(--color-text)]">{cat.name}</span>
                                     </div>
+                                    {!cat.is_default && (
+                                        <button
+                                            onClick={() => deleteCategory(cat.id)}
+                                            className="text-[var(--color-error)] hover:bg-[var(--color-error)]/10 p-2 rounded-lg"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -374,9 +453,9 @@ export const Settings: React.FC = () => {
         <div className="animate-fade-in">
             {/* Header */}
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-[var(--color-text)]">Settings</h1>
+                <h1 className="text-2xl font-bold text-[var(--color-text)]">{t('settings.title')}</h1>
                 <p className="text-[var(--color-text-muted)]">
-                    Manage your account settings and preferences
+                    {t('settings.subtitle')}
                 </p>
             </div>
 

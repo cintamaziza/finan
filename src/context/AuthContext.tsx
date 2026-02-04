@@ -9,8 +9,10 @@ interface AuthContextType {
     isAuthenticated: boolean;
     login: (email: string, password: string) => Promise<{ error: AuthError | null }>;
     register: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>;
+    signInWithGoogle: () => Promise<{ error: AuthError | null }>;
     logout: () => Promise<void>;
     updateAvatar: (url: string | null) => void;
+    updateProfile: (updates: { full_name?: string; avatar_url?: string }) => Promise<{ error: AuthError | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -205,6 +207,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return { error: null };
     };
 
+    const signInWithGoogle = async (): Promise<{ error: AuthError | null }> => {
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: `${window.location.origin}/dashboard`,
+            },
+        });
+
+        if (error) {
+            return { error };
+        }
+
+        return { error: null };
+    };
+
     const logout = async () => {
         await supabase.auth.signOut();
         setUser(null);
@@ -216,15 +233,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     }, [user]);
 
+    const updateProfile = useCallback(async (updates: { full_name?: string; avatar_url?: string }) => {
+        const { data, error } = await supabase.auth.updateUser({
+            data: updates
+        });
+
+        if (error) {
+            return { error };
+        }
+
+        if (data.user) {
+            setUser(prev => prev ? mapSupabaseUser(data.user, prev.avatar_url) : null);
+        }
+
+        return { error: null };
+    }, []);
+
     const contextValue = useMemo(() => ({
         user,
         isLoading,
         isAuthenticated: !!user,
         login,
         register,
+        signInWithGoogle,
         logout,
         updateAvatar,
-    }), [user, isLoading, login, register, logout, updateAvatar]);
+        updateProfile,
+    }), [user, isLoading, login, register, signInWithGoogle, logout, updateAvatar, updateProfile]);
 
     return (
         <AuthContext.Provider value={contextValue}>

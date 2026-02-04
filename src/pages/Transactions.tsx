@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Plus,
     Search,
@@ -20,7 +20,7 @@ import { useTransactions, useCategories, useAccounts } from '../hooks';
 import type { Transaction } from '../types';
 
 export const Transactions: React.FC = () => {
-    const { transactions, isLoading, addTransaction, deleteTransaction, totalIncome, totalExpenses } = useTransactions();
+    const { transactions, isLoading, addTransaction, updateTransaction, deleteTransaction, totalIncome, totalExpenses } = useTransactions();
     const { expenseCategories, incomeCategories } = useCategories();
     const { accounts } = useAccounts();
 
@@ -39,6 +39,20 @@ export const Transactions: React.FC = () => {
         type: 'expense' as 'income' | 'expense',
     });
     const itemsPerPage = 10;
+
+    // Populate form when editing
+    useEffect(() => {
+        if (editingTransaction) {
+            setFormData({
+                amount: editingTransaction.amount.toString(),
+                description: editingTransaction.description,
+                category_id: editingTransaction.category_id,
+                account_id: editingTransaction.account_id,
+                date: editingTransaction.date.split('T')[0],
+                type: editingTransaction.type,
+            });
+        }
+    }, [editingTransaction]);
 
     // Filter transactions
     const filteredTransactions = transactions.filter((t) => {
@@ -59,7 +73,7 @@ export const Transactions: React.FC = () => {
         e.preventDefault();
         setIsSubmitting(true);
 
-        await addTransaction({
+        const transactionData = {
             amount: parseFloat(formData.amount),
             description: formData.description,
             category_id: formData.category_id,
@@ -67,10 +81,17 @@ export const Transactions: React.FC = () => {
             date: formData.date,
             type: formData.type,
             is_recurring: false,
-        });
+        };
+
+        if (editingTransaction) {
+            await updateTransaction(editingTransaction.id, transactionData);
+        } else {
+            await addTransaction(transactionData);
+        }
 
         setIsSubmitting(false);
         setIsAddModalOpen(false);
+        setEditingTransaction(null);
         setFormData({
             amount: '',
             description: '',

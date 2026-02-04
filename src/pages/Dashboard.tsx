@@ -8,7 +8,6 @@ import {
     Plus,
     ArrowUpRight,
     ArrowDownRight,
-    MoreHorizontal,
     Calendar,
     ChevronRight,
     Loader2
@@ -23,11 +22,15 @@ import {
     ResponsiveContainer,
     PieChart,
     Pie,
-    Cell
+    Cell,
+    BarChart,
+    Bar,
+    Legend
 } from 'recharts';
 import { Card, CardHeader, Progress, Badge, Button } from '../components/ui';
 import { formatCurrency, getRelativeDate } from '../lib/utils';
 import { useDashboard } from '../hooks';
+import { useTranslation } from '../hooks/useTranslation';
 
 const StatCard = memo<{
     title: string;
@@ -57,11 +60,18 @@ const StatCard = memo<{
 
 StatCard.displayName = 'StatCard';
 
+const formatAxisCurrency = (value: number) => {
+    if (value >= 1000000) return `${(value / 1000000).toFixed(0)}jt`;
+    if (value >= 1000) return `${(value / 1000).toFixed(0)}rb`;
+    return value.toString();
+};
+
 export const Dashboard: React.FC = () => {
     const { stats, monthlyChartData, categoryChartData, previousMonthStats, isLoading } = useDashboard();
+    const { t, language } = useTranslation();
 
     // Get current month name
-    const currentMonth = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+    const currentMonth = new Date().toLocaleDateString(language === 'id' ? 'id-ID' : 'en-US', { month: 'long', year: 'numeric' });
 
     // Calculate percentage changes from previous month
     const incomeChange = previousMonthStats && previousMonthStats.income > 0
@@ -101,22 +111,22 @@ export const Dashboard: React.FC = () => {
         : undefined;
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6 animate-fade-in mb-8">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-[var(--color-text)]">Dashboard</h1>
+                    <h1 className="text-2xl font-bold text-[var(--color-text)]">{t('nav.dashboard')}</h1>
                     <p className="text-[var(--color-text-muted)]">
-                        Ringkasan keuangan Anda untuk {currentMonth}
+                        {currentMonth}
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
                     <Button variant="secondary" leftIcon={<Calendar size={18} />}>
-                        Bulan Ini
+                        {currentMonth}
                     </Button>
                     <Link to="/transactions">
                         <Button variant="primary" leftIcon={<Plus size={18} />}>
-                            Tambah Transaksi
+                            {t('settings.addCategory').replace('Category', 'Transaction')}
                         </Button>
                     </Link>
                 </div>
@@ -125,27 +135,27 @@ export const Dashboard: React.FC = () => {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
-                    title="Total Balance"
+                    title={t('dash.totalBalance')}
                     value={formatCurrency(dashboardData.totalBalance)}
                     icon={Wallet}
                     iconBg="bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-light)]"
                 />
                 <StatCard
-                    title="Monthly Income"
+                    title={t('dash.monthlyIncome')}
                     value={formatCurrency(dashboardData.monthlyIncome)}
                     change={previousMonthStats?.income ? parseFloat(incomeChange.toFixed(1)) : undefined}
                     icon={TrendingUp}
                     iconBg="bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-light)]"
                 />
                 <StatCard
-                    title="Monthly Expenses"
+                    title={t('dash.monthlyExpenses')}
                     value={formatCurrency(dashboardData.monthlyExpenses)}
                     change={previousMonthStats?.expenses ? parseFloat(expenseChange.toFixed(1)) : undefined}
                     icon={TrendingDown}
                     iconBg="bg-gradient-to-br from-[var(--color-error)] to-[var(--color-error-light)]"
                 />
                 <StatCard
-                    title="Savings Rate"
+                    title={t('dash.savingsRate')}
                     value={`${dashboardData.savingsRate.toFixed(1)}%`}
                     change={savingsRateChange !== undefined ? parseFloat(savingsRateChange.toFixed(1)) : undefined}
                     icon={PiggyBank}
@@ -153,87 +163,48 @@ export const Dashboard: React.FC = () => {
                 />
             </div>
 
-            {/* Main Content Grid */}
-            <div className="grid lg:grid-cols-3 gap-6">
-                {/* Spending Chart */}
-                <Card className="lg:col-span-2">
-                    <CardHeader
-                        title="Income vs Expenses"
-                        subtitle="Last 6 months overview"
-                        action={
-                            <button className="p-2 hover:bg-[var(--color-secondary)] rounded-lg">
-                                <MoreHorizontal size={20} className="text-[var(--color-text-muted)]" />
-                            </button>
-                        }
-                    />
+            {/* Charts Section */}
+            <div className="grid lg:grid-cols-2 gap-6">
+                {/* Monthly Comparison Bar Chart */}
+                <Card>
+                    <CardHeader title={t('dash.monthlyComparison')} subtitle={`${t('dash.income')} vs ${t('dash.expense')}`} />
                     <div className="h-72">
-                        {monthlyChartData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                                <AreaChart data={monthlyChartData}>
-                                    <defs>
-                                        <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="var(--color-accent)" stopOpacity={0.3} />
-                                            <stop offset="95%" stopColor="var(--color-accent)" stopOpacity={0} />
-                                        </linearGradient>
-                                        <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="var(--color-error)" stopOpacity={0.3} />
-                                            <stop offset="95%" stopColor="var(--color-error)" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                                    <XAxis
-                                        dataKey="month"
-                                        stroke="var(--color-text-muted)"
-                                        fontSize={12}
-                                    />
-                                    <YAxis
-                                        stroke="var(--color-text-muted)"
-                                        fontSize={12}
-                                        tickFormatter={(value) => `$${value / 1000}k`}
-                                    />
-                                    <Tooltip
-                                        contentStyle={{
-                                            backgroundColor: 'var(--color-bg)',
-                                            border: '1px solid var(--color-border)',
-                                            borderRadius: '8px',
-                                        }}
-                                        formatter={(value) => formatCurrency(value as number)}
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="income"
-                                        name="Income"
-                                        stroke="var(--color-accent)"
-                                        strokeWidth={2}
-                                        fillOpacity={1}
-                                        fill="url(#colorIncome)"
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="expenses"
-                                        name="Expenses"
-                                        stroke="var(--color-error)"
-                                        strokeWidth={2}
-                                        fillOpacity={1}
-                                        fill="url(#colorExpenses)"
-                                    />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="flex items-center justify-center h-full text-[var(--color-text-muted)]">
-                                No transaction data available
-                            </div>
-                        )}
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={monthlyChartData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                                <XAxis dataKey="month" stroke="var(--color-text-muted)" fontSize={12} axisLine={false} tickLine={false} />
+                                <YAxis
+                                    stroke="var(--color-text-muted)"
+                                    fontSize={12}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tickFormatter={formatAxisCurrency}
+                                />
+                                <Tooltip
+                                    cursor={{ fill: 'var(--color-border)', opacity: 0.1 }}
+                                    contentStyle={{
+                                        backgroundColor: 'var(--color-bg)',
+                                        border: '1px solid var(--color-border)',
+                                        borderRadius: '12px',
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                    }}
+                                    formatter={(value) => formatCurrency(value as number)}
+                                />
+                                <Legend />
+                                <Bar name={t('dash.income')} dataKey="income" fill="var(--color-accent)" radius={[4, 4, 0, 0]} />
+                                <Bar name={t('dash.expense')} dataKey="expenses" fill="var(--color-error)" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
                     </div>
                 </Card>
 
-                {/* Spending by Category */}
+                {/* Spending by Category Pie Chart */}
                 <Card>
                     <CardHeader
-                        title="Spending by Category"
-                        subtitle="This month"
+                        title={t('dash.spendingByCategory')}
+                        subtitle={currentMonth}
                     />
-                    <div className="h-48 flex items-center justify-center">
+                    <div className="h-72 flex items-center justify-center">
                         {categoryChartData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                 <PieChart>
@@ -241,13 +212,13 @@ export const Dashboard: React.FC = () => {
                                         data={categoryChartData}
                                         cx="50%"
                                         cy="50%"
-                                        innerRadius={50}
-                                        outerRadius={70}
-                                        paddingAngle={2}
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        paddingAngle={5}
                                         dataKey="value"
                                     >
                                         {categoryChartData.map((entry: { name: string; value: number; color: string }, index: number) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                            <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
                                         ))}
                                     </Pie>
                                     <Tooltip
@@ -258,41 +229,98 @@ export const Dashboard: React.FC = () => {
                                         }}
                                         formatter={(value) => formatCurrency(value as number)}
                                     />
+                                    <Legend layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{ fontSize: '12px' }} />
                                 </PieChart>
                             </ResponsiveContainer>
                         ) : (
                             <div className="text-[var(--color-text-muted)]">
-                                No expense data this month
+                                {t('dash.noTransactions')}
                             </div>
                         )}
                     </div>
-                    <div className="mt-4 space-y-2">
-                        {categoryChartData.slice(0, 4).map((category: { name: string; value: number; color: string }, i: number) => (
-                            <div key={i} className="flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-2">
-                                    <div
-                                        className="w-3 h-3 rounded-full"
-                                        style={{ backgroundColor: category.color }}
-                                    />
-                                    <span className="text-[var(--color-text-muted)]">{category.name}</span>
-                                </div>
-                                <span className="font-medium">{formatCurrency(category.value)}</span>
-                            </div>
-                        ))}
-                    </div>
-
                 </Card>
             </div>
+
+            {/* Income vs Expenses Trend Area Chart (Full Width) */}
+            <Card>
+                <CardHeader
+                    title={t('dash.incomeVsExpense')}
+                    subtitle="6 Months Trend"
+                />
+                <div className="h-72">
+                    {monthlyChartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                            <AreaChart data={monthlyChartData}>
+                                <defs>
+                                    <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="var(--color-accent)" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="var(--color-accent)" stopOpacity={0} />
+                                    </linearGradient>
+                                    <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="var(--color-error)" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="var(--color-error)" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                                <XAxis
+                                    dataKey="month"
+                                    stroke="var(--color-text-muted)"
+                                    fontSize={12}
+                                    axisLine={false}
+                                    tickLine={false}
+                                />
+                                <YAxis
+                                    stroke="var(--color-text-muted)"
+                                    fontSize={12}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tickFormatter={formatAxisCurrency}
+                                />
+                                <Tooltip
+                                    contentStyle={{
+                                        backgroundColor: 'var(--color-bg)',
+                                        border: '1px solid var(--color-border)',
+                                        borderRadius: '8px',
+                                    }}
+                                    formatter={(value) => formatCurrency(value as number)}
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="income"
+                                    name={t('dash.income')}
+                                    stroke="var(--color-accent)"
+                                    strokeWidth={3}
+                                    fillOpacity={1}
+                                    fill="url(#colorIncome)"
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="expenses"
+                                    name={t('dash.expense')}
+                                    stroke="var(--color-error)"
+                                    strokeWidth={3}
+                                    fillOpacity={1}
+                                    fill="url(#colorExpenses)"
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="flex items-center justify-center h-full text-[var(--color-text-muted)]">
+                            {t('dash.noTransactions')}
+                        </div>
+                    )}
+                </div>
+            </Card>
 
             {/* Bottom Section */}
             <div className="grid lg:grid-cols-3 gap-6">
                 {/* Recent Transactions */}
                 <Card className="lg:col-span-2">
                     <CardHeader
-                        title="Recent Transactions"
+                        title={t('dash.recentTransactions')}
                         action={
                             <Link to="/transactions" className="text-sm text-[var(--color-primary)] hover:underline flex items-center gap-1">
-                                View all <ChevronRight size={16} />
+                                {t('dash.viewAll')} <ChevronRight size={16} />
                             </Link>
                         }
                     />
@@ -335,10 +363,10 @@ export const Dashboard: React.FC = () => {
                 {/* Budget Progress */}
                 <Card>
                     <CardHeader
-                        title="Budget Progress"
+                        title={t('nav.budget')}
                         action={
                             <Link to="/budgets" className="text-sm text-[var(--color-primary)] hover:underline flex items-center gap-1">
-                                Manage <ChevronRight size={16} />
+                                {t('dash.viewAll')} <ChevronRight size={16} />
                             </Link>
                         }
                     />
@@ -376,12 +404,12 @@ export const Dashboard: React.FC = () => {
             {/* Goals Section */}
             <Card>
                 <CardHeader
-                    title="Financial Goals"
+                    title={t('nav.goals')}
                     subtitle="Track your progress towards your financial objectives"
                     action={
                         <Link to="/goals">
                             <Button variant="secondary" size="sm" rightIcon={<ChevronRight size={16} />}>
-                                View All Goals
+                                {t('dash.viewAll')}
                             </Button>
                         </Link>
                     }
@@ -403,7 +431,7 @@ export const Dashboard: React.FC = () => {
                                     <div>
                                         <p className="font-medium text-[var(--color-text)]">{goal.name}</p>
                                         <p className="text-xs text-[var(--color-text-muted)]">
-                                            Due: {goal.deadline ? new Date(goal.deadline).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'No deadline'}
+                                            Due: {goal.deadline ? new Date(goal.deadline).toLocaleDateString(language === 'id' ? 'id-ID' : 'en-US', { month: 'short', year: 'numeric' }) : 'No deadline'}
                                         </p>
                                     </div>
                                 </div>

@@ -25,55 +25,85 @@ import {
     Pie,
     Cell
 } from 'recharts';
-import { Card, CardHeader, Button, Badge } from '../components/ui';
+import { Card, CardHeader, Button, Badge, Input } from '../components/ui';
 import { formatCurrency, classNames } from '../lib/utils';
 import { useTransactions, useCategories, useAccounts, useGoals, useBillReminders, useBudgets } from '../hooks';
+import { useTranslation } from '../hooks/useTranslation';
+import { useSettings } from '../context/SettingsContext';
 import { exportTransactions, exportAccounts, exportGoals, exportBills, exportBudgets, exportAllData, exportReportToPDF } from '../lib/export';
 
-const reportTypes = [
-    { id: 'spending', label: 'Spending Overview', icon: TrendingDown },
-    { id: 'income', label: 'Income Analysis', icon: TrendingUp },
-    { id: 'categories', label: 'Category Breakdown', icon: PieChart },
-    { id: 'trends', label: 'Trends', icon: BarChart3 },
-];
-
-const dateRanges = [
-    { value: 'this-month', label: 'This Month', months: 0 },
-    { value: 'last-month', label: 'Last Month', months: 1 },
-    { value: 'last-3-months', label: 'Last 3 Months', months: 3 },
-    { value: 'last-6-months', label: 'Last 6 Months', months: 6 },
-    { value: 'this-year', label: 'This Year', months: 12 },
-];
-
-const getDateRange = (rangeValue: string) => {
-    const now = new Date();
-    const range = dateRanges.find(r => r.value === rangeValue);
-    const months = range?.months ?? 6;
-
-    let startDate: Date;
-    let endDate: Date = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
-    if (rangeValue === 'this-month') {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    } else if (rangeValue === 'last-month') {
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        endDate = new Date(now.getFullYear(), now.getMonth(), 0);
-    } else {
-        startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
-    }
-
-    return {
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0],
-    };
-};
-
 export const Reports: React.FC = () => {
+    const { t, language } = useTranslation();
+    const { settings } = useSettings();
     const [selectedReport, setSelectedReport] = useState('spending');
     const [selectedRange, setSelectedRange] = useState('last-6-months');
+
+    const formatAxis = (value: number) => {
+        if (language === 'id') {
+            if (value >= 1000000) return `${(value / 1000000).toFixed(1)}jt`;
+            if (value >= 1000) return `${(value / 1000).toFixed(0)}rb`;
+        } else {
+            if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+            if (value >= 1000) return `${(value / 1000).toFixed(0)}k`;
+        }
+        return value.toString();
+    };
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
-    const { startDate, endDate } = getDateRange(selectedRange);
+    // Custom date range state
+    const today = new Date();
+    const [customStartDate, setCustomStartDate] = useState(
+        new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
+    );
+    const [customEndDate, setCustomEndDate] = useState(
+        new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0]
+    );
+
+    const reportTypes = [
+        { id: 'spending', label: t('reports.spendingOverview'), icon: TrendingDown },
+        { id: 'income', label: t('reports.incomeAnalysis'), icon: TrendingUp },
+        { id: 'categories', label: t('reports.categoryBreakdown'), icon: PieChart },
+        { id: 'trends', label: t('reports.trends'), icon: BarChart3 },
+    ];
+
+    const dateRanges = [
+        { value: 'this-month', label: t('reports.thisMonth'), months: 0 },
+        { value: 'last-month', label: t('reports.lastMonth'), months: 1 },
+        { value: 'last-3-months', label: t('reports.last3Months'), months: 3 },
+        { value: 'last-6-months', label: t('reports.last6Months'), months: 6 },
+        { value: 'this-year', label: t('reports.thisYear'), months: 12 },
+        { value: 'custom', label: t('reports.custom'), months: 0 },
+    ];
+
+    const { startDate, endDate } = useMemo(() => {
+        if (selectedRange === 'custom') {
+            return { startDate: customStartDate, endDate: customEndDate };
+        }
+
+        const now = new Date();
+        const range = dateRanges.find(r => r.value === selectedRange);
+        const months = range?.months ?? 6;
+
+        let start: Date;
+        let end: Date = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+        if (selectedRange === 'this-month') {
+            start = new Date(now.getFullYear(), now.getMonth(), 1);
+        } else if (selectedRange === 'last-month') {
+            start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            end = new Date(now.getFullYear(), now.getMonth(), 0);
+        } else if (selectedRange === 'this-year') {
+            start = new Date(now.getFullYear(), 0, 1);
+        } else {
+            start = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
+        }
+
+        return {
+            startDate: start.toISOString().split('T')[0],
+            endDate: end.toISOString().split('T')[0],
+        };
+    }, [selectedRange, customStartDate, customEndDate]);
+
     const { transactions, isLoading, totalIncome, totalExpenses } = useTransactions({
         startDate,
         endDate,
@@ -114,15 +144,16 @@ export const Reports: React.FC = () => {
 
     // Aggregate monthly data for charts
     const monthlySpendingData = useMemo(() => {
-        const monthlyData: Record<string, { month: string; income: number; expenses: number }> = {};
+        const monthlyData: Record<string, { month: string; income: number; expenses: number; sortKey: string }> = {};
 
         transactions.forEach(t => {
             const date = new Date(t.date);
             const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-            const monthLabel = date.toLocaleDateString('en-US', { month: 'short' });
+            // Correctly format month based on current language
+            const monthLabel = date.toLocaleDateString(language === 'id' ? 'id-ID' : 'en-US', { month: 'short', year: '2-digit' });
 
             if (!monthlyData[monthKey]) {
-                monthlyData[monthKey] = { month: monthLabel, income: 0, expenses: 0 };
+                monthlyData[monthKey] = { month: monthLabel, income: 0, expenses: 0, sortKey: monthKey };
             }
 
             if (t.type === 'income') {
@@ -132,11 +163,10 @@ export const Reports: React.FC = () => {
             }
         });
 
-        // Sort by date and return array
-        return Object.entries(monthlyData)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([, data]) => data);
-    }, [transactions]);
+        // Sort by date key (YYYY-MM) but display formatted label
+        return Object.values(monthlyData)
+            .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+    }, [transactions, language]);
 
     // Aggregate category spending for pie chart
     const categorySpendingData = useMemo(() => {
@@ -180,12 +210,33 @@ export const Reports: React.FC = () => {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-[var(--color-text)]">Reports</h1>
+                    <h1 className="text-2xl font-bold text-[var(--color-text)]">{t('reports.title')}</h1>
                     <p className="text-[var(--color-text-muted)]">
-                        Analyze your financial data and spending patterns
+                        {t('reports.subtitle')}
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+                    {selectedRange === 'custom' && (
+                        <div className="flex items-center gap-2 animate-fade-in">
+                            <div>
+                                <Input
+                                    type="date"
+                                    value={customStartDate}
+                                    onChange={(e) => setCustomStartDate(e.target.value)}
+                                    className="!py-1.5 !px-2 text-sm max-w-[140px]"
+                                />
+                            </div>
+                            <span className="text-[var(--color-text-muted)]">-</span>
+                            <div>
+                                <Input
+                                    type="date"
+                                    value={customEndDate}
+                                    onChange={(e) => setCustomEndDate(e.target.value)}
+                                    className="!py-1.5 !px-2 text-sm max-w-[140px]"
+                                />
+                            </div>
+                        </div>
+                    )}
                     <div className="flex items-center gap-2">
                         <Calendar size={18} className="text-[var(--color-text-muted)]" />
                         <select
@@ -204,7 +255,7 @@ export const Reports: React.FC = () => {
                             leftIcon={<Download size={18} />}
                             onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
                         >
-                            Export CSV
+                            {t('reports.exportCSV')}
                             <ChevronDown size={16} className="ml-1" />
                         </Button>
                         {isExportMenuOpen && (
@@ -214,35 +265,35 @@ export const Reports: React.FC = () => {
                                     onClick={() => handleExport('transactions')}
                                 >
                                     <FileText size={18} className="text-[var(--color-text-muted)]" />
-                                    <span>Transaksi</span>
+                                    <span>{t('reports.transactions')}</span>
                                 </button>
                                 <button
                                     className="w-full px-4 py-2.5 text-left text-sm hover:bg-[var(--color-secondary)] flex items-center gap-3"
                                     onClick={() => handleExport('accounts')}
                                 >
                                     <FileText size={18} className="text-[var(--color-text-muted)]" />
-                                    <span>Akun</span>
+                                    <span>{t('reports.accounts')}</span>
                                 </button>
                                 <button
                                     className="w-full px-4 py-2.5 text-left text-sm hover:bg-[var(--color-secondary)] flex items-center gap-3"
                                     onClick={() => handleExport('goals')}
                                 >
                                     <FileText size={18} className="text-[var(--color-text-muted)]" />
-                                    <span>Target Keuangan</span>
+                                    <span>{t('reports.goals')}</span>
                                 </button>
                                 <button
                                     className="w-full px-4 py-2.5 text-left text-sm hover:bg-[var(--color-secondary)] flex items-center gap-3"
                                     onClick={() => handleExport('bills')}
                                 >
                                     <FileText size={18} className="text-[var(--color-text-muted)]" />
-                                    <span>Tagihan</span>
+                                    <span>{t('reports.bills')}</span>
                                 </button>
                                 <button
                                     className="w-full px-4 py-2.5 text-left text-sm hover:bg-[var(--color-secondary)] flex items-center gap-3"
                                     onClick={() => handleExport('budgets')}
                                 >
                                     <FileText size={18} className="text-[var(--color-text-muted)]" />
-                                    <span>Anggaran</span>
+                                    <span>{t('reports.budgets')}</span>
                                 </button>
                                 <hr className="my-2 border-[var(--color-border)]" />
                                 <button
@@ -250,14 +301,14 @@ export const Reports: React.FC = () => {
                                     onClick={() => handleExport('summary')}
                                 >
                                     <Download size={18} />
-                                    <span>Ringkasan CSV</span>
+                                    <span>{t('reports.summaryCSV')}</span>
                                 </button>
                                 <button
                                     className="w-full px-4 py-2.5 text-left text-sm hover:bg-[var(--color-secondary)] flex items-center gap-3 font-medium text-[var(--color-error)]"
                                     onClick={() => handleExport('pdf')}
                                 >
                                     <FileText size={18} />
-                                    <span>Laporan PDF</span>
+                                    <span>{t('reports.reportPDF')}</span>
                                 </button>
                             </div>
                         )}
@@ -287,33 +338,33 @@ export const Reports: React.FC = () => {
             {/* Summary Stats */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card>
-                    <p className="text-sm text-[var(--color-text-muted)]">Total Income</p>
+                    <p className="text-sm text-[var(--color-text-muted)]">{t('reports.totalIncome')}</p>
                     <p className="text-2xl font-bold text-[var(--color-accent)] mt-1">
-                        {formatCurrency(totalIncome)}
+                        {formatCurrency(totalIncome, settings.currency)}
                     </p>
                     <Badge variant="success" size="sm" className="mt-2">
                         <ArrowUpRight size={12} className="mr-1" />
-                        {transactions.filter(t => t.type === 'income').length} transactions
+                        {transactions.filter(t => t.type === 'income').length} {t('nav.transactions').toLowerCase()}
                     </Badge>
                 </Card>
                 <Card>
-                    <p className="text-sm text-[var(--color-text-muted)]">Total Expenses</p>
+                    <p className="text-sm text-[var(--color-text-muted)]">{t('reports.totalExpenses')}</p>
                     <p className="text-2xl font-bold text-[var(--color-error)] mt-1">
-                        {formatCurrency(totalExpenses)}
+                        {formatCurrency(totalExpenses, settings.currency)}
                     </p>
                     <Badge variant="error" size="sm" className="mt-2">
                         <TrendingDown size={12} className="mr-1" />
-                        {transactions.filter(t => t.type === 'expense').length} transactions
+                        {transactions.filter(t => t.type === 'expense').length} {t('nav.transactions').toLowerCase()}
                     </Badge>
                 </Card>
                 <Card>
-                    <p className="text-sm text-[var(--color-text-muted)]">Avg Monthly Expenses</p>
+                    <p className="text-sm text-[var(--color-text-muted)]">{t('reports.avgMonthlyExpenses')}</p>
                     <p className="text-2xl font-bold text-[var(--color-text)] mt-1">
-                        {formatCurrency(avgMonthlyExpenses)}
+                        {formatCurrency(avgMonthlyExpenses, settings.currency)}
                     </p>
                 </Card>
                 <Card>
-                    <p className="text-sm text-[var(--color-text-muted)]">Savings Rate</p>
+                    <p className="text-sm text-[var(--color-text-muted)]">{t('reports.savingsRate')}</p>
                     <p className="text-2xl font-bold text-[var(--color-primary)] mt-1">
                         {savingsRate.toFixed(1)}%
                     </p>
@@ -324,29 +375,30 @@ export const Reports: React.FC = () => {
             <div className="grid lg:grid-cols-2 gap-6">
                 {/* Income vs Expenses */}
                 <Card>
-                    <CardHeader title="Income vs Expenses" subtitle="Monthly comparison" />
+                    <CardHeader title={t('reports.incomeVsExpenses')} subtitle={t('dash.monthlyComparison')} />
                     <div className="h-72">
                         {monthlySpendingData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                 <BarChart data={monthlySpendingData}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                                     <XAxis dataKey="month" stroke="var(--color-text-muted)" fontSize={12} />
-                                    <YAxis stroke="var(--color-text-muted)" fontSize={12} tickFormatter={(v) => `$${v / 1000}k`} />
+                                    <YAxis stroke="var(--color-text-muted)" fontSize={12} tickFormatter={formatAxis} />
                                     <Tooltip
                                         contentStyle={{
                                             backgroundColor: 'var(--color-bg)',
                                             border: '1px solid var(--color-border)',
                                             borderRadius: '8px',
                                         }}
-                                        formatter={(value) => formatCurrency(value as number)}
+                                        formatter={(value) => formatCurrency(value as number, settings.currency)}
+                                        labelStyle={{ color: 'var(--color-text)' }}
                                     />
-                                    <Bar dataKey="income" name="Income" fill="var(--color-accent)" radius={[4, 4, 0, 0]} />
-                                    <Bar dataKey="expenses" name="Expenses" fill="var(--color-error)" radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="income" name={t('dash.income')} fill="var(--color-accent)" radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="expenses" name={t('dash.expense')} fill="var(--color-error)" radius={[4, 4, 0, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : (
                             <div className="flex items-center justify-center h-full text-[var(--color-text-muted)]">
-                                No transaction data for this period
+                                {t('reports.noData')}
                             </div>
                         )}
                     </div>
@@ -354,7 +406,7 @@ export const Reports: React.FC = () => {
 
                 {/* Spending by Category */}
                 <Card>
-                    <CardHeader title="Spending by Category" subtitle="Distribution overview" />
+                    <CardHeader title={t('reports.categoryBreakdown')} subtitle={t('reports.categoryDetails')} />
                     <div className="h-72">
                         {categorySpendingData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
@@ -374,12 +426,12 @@ export const Reports: React.FC = () => {
                                             <Cell key={`cell-${index}`} fill={entry.color} />
                                         ))}
                                     </Pie>
-                                    <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                                    <Tooltip formatter={(value) => formatCurrency(value as number, settings.currency)} />
                                 </RechartsPieChart>
                             </ResponsiveContainer>
                         ) : (
                             <div className="flex items-center justify-center h-full text-[var(--color-text-muted)]">
-                                No expense data for this period
+                                {t('reports.noData')}
                             </div>
                         )}
                     </div>
@@ -387,7 +439,7 @@ export const Reports: React.FC = () => {
 
                 {/* Spending Trend */}
                 <Card className="lg:col-span-2">
-                    <CardHeader title="Spending Trend" subtitle="Expense trend analysis" />
+                    <CardHeader title={t('reports.spendingTrend')} subtitle={t('dash.monthlyExpenses')} />
                     <div className="h-72">
                         {monthlySpendingData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
@@ -400,19 +452,20 @@ export const Reports: React.FC = () => {
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                                     <XAxis dataKey="month" stroke="var(--color-text-muted)" fontSize={12} />
-                                    <YAxis stroke="var(--color-text-muted)" fontSize={12} tickFormatter={(v) => `$${v / 1000}k`} />
+                                    <YAxis stroke="var(--color-text-muted)" fontSize={12} tickFormatter={formatAxis} />
                                     <Tooltip
                                         contentStyle={{
                                             backgroundColor: 'var(--color-bg)',
                                             border: '1px solid var(--color-border)',
                                             borderRadius: '8px',
                                         }}
-                                        formatter={(value) => formatCurrency(value as number)}
+                                        formatter={(value) => formatCurrency(value as number, settings.currency)}
+                                        labelStyle={{ color: 'var(--color-text)' }}
                                     />
                                     <Area
                                         type="monotone"
                                         dataKey="expenses"
-                                        name="Expenses"
+                                        name={t('dash.expense')}
                                         stroke="var(--color-primary)"
                                         strokeWidth={2}
                                         fillOpacity={1}
@@ -422,7 +475,7 @@ export const Reports: React.FC = () => {
                             </ResponsiveContainer>
                         ) : (
                             <div className="flex items-center justify-center h-full text-[var(--color-text-muted)]">
-                                No transaction data for this period
+                                {t('reports.noData')}
                             </div>
                         )}
                     </div>
@@ -431,7 +484,7 @@ export const Reports: React.FC = () => {
 
             {/* Category Breakdown Table */}
             <Card>
-                <CardHeader title="Category Details" subtitle="Detailed spending breakdown" />
+                <CardHeader title={t('reports.categoryDetails')} subtitle={t('reports.categoryBreakdown')} />
                 <div className="overflow-x-auto">
                     {categorySpendingData.length > 0 ? (
                         <table className="w-full">
@@ -461,7 +514,7 @@ export const Reports: React.FC = () => {
                                                     <span className="font-medium text-[var(--color-text)]">{category.name}</span>
                                                 </div>
                                             </td>
-                                            <td className="p-4 text-right font-medium">{formatCurrency(category.value)}</td>
+                                            <td className="p-4 text-right font-medium">{formatCurrency(category.value, settings.currency)}</td>
                                             <td className="p-4 text-right text-[var(--color-text-muted)]">{pct.toFixed(1)}%</td>
                                             <td className="p-4 text-right">
                                                 <Badge variant="info" size="sm">
@@ -475,7 +528,7 @@ export const Reports: React.FC = () => {
                         </table>
                     ) : (
                         <div className="p-8 text-center text-[var(--color-text-muted)]">
-                            No expense data for this period
+                            {t('reports.noData')}
                         </div>
                     )}
                 </div>
