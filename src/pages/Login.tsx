@@ -6,8 +6,9 @@ import { useAuth } from '../context/AuthContext';
 
 export const Login: React.FC = () => {
     const navigate = useNavigate();
-    const { login, isLoading } = useAuth();
+    const { login } = useAuth();
     const [showPassword, setShowPassword] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -39,12 +40,21 @@ export const Login: React.FC = () => {
 
         if (!validate()) return;
 
-        const { error } = await login(formData.email, formData.password);
+        setIsSubmitting(true);
+        setErrors({});
 
-        if (error) {
-            setErrors({ submit: error.message || 'Invalid email or password' });
-        } else {
-            navigate('/dashboard');
+        try {
+            const { error } = await login(formData.email, formData.password);
+
+            if (error) {
+                setErrors({ submit: error.message || 'Invalid email or password' });
+                setIsSubmitting(false);
+            } else {
+                navigate('/dashboard');
+            }
+        } catch (err) {
+            setErrors({ submit: 'Failed to connect to server. Please try again.' });
+            setIsSubmitting(false);
         }
     };
 
@@ -124,7 +134,7 @@ export const Login: React.FC = () => {
                             variant="primary"
                             className="w-full"
                             size="lg"
-                            isLoading={isLoading}
+                            isLoading={isSubmitting}
                             rightIcon={<ArrowRight size={18} />}
                         >
                             Sign in
