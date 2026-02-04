@@ -84,27 +84,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         const initializeAuth = async () => {
             try {
-                console.log('🔄 Initializing auth...');
 
                 // First attempt with 5 second timeout
                 let result = await getSessionWithTimeout(5000);
 
                 // If first attempt times out, retry with longer timeout
                 if (!result) {
-                    console.log('🔄 First attempt timed out, retrying...');
                     result = await getSessionWithTimeout(10000);
                 }
 
                 if (!mounted) return;
 
                 if (result?.session?.user) {
-                    console.log('🔄 Session found, fetching avatar...');
                     const avatarUrl = await fetchAvatarUrl(result.session.user.id);
                     if (!mounted) return;
                     setUser(mapSupabaseUser(result.session.user, avatarUrl));
-                    console.log('🔄 User authenticated');
-                } else {
-                    console.log('🔄 No session found');
                 }
             } catch (error) {
                 // Ignore AbortError (happens during React Strict Mode remount)
@@ -113,7 +107,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 }
                 console.error('Error getting session:', error);
             } finally {
-                console.log('🔄 Auth initialization complete');
                 if (mounted) {
                     setIsLoading(false);
                 }
@@ -124,7 +117,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // FAILSAFE: Guarantee loading stops after 8 seconds no matter what
         const failsafeTimeout = setTimeout(() => {
-            console.log('⚠️ Failsafe timeout triggered - forcing loading to complete');
             setIsLoading(false);
         }, 8000);
 
@@ -185,7 +177,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         fullName: string
     ): Promise<{ error: AuthError | null }> => {
         setIsLoading(true);
-        console.log('📝 Registering user:', email);
 
         const { data, error } = await supabase.auth.signUp({
             email,
@@ -197,8 +188,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             },
         });
 
-        console.log('📝 Registration result:', { data, error });
-
         if (error) {
             console.error('❌ Registration error:', error.message);
             setIsLoading(false);
@@ -207,13 +196,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // Check if email confirmation is required
         if (data?.user?.identities?.length === 0) {
-            console.log('⚠️ Email already registered');
             setIsLoading(false);
             return { error: { message: 'Email already registered', name: 'AuthError' } as AuthError };
         }
 
-        console.log('✅ User created:', data?.user?.id);
-        console.log('📧 Check email for confirmation link (if email confirmation is enabled in Supabase)');
 
         // User will be set by onAuthStateChange listener
         return { error: null };
