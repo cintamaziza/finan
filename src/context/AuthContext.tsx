@@ -56,31 +56,46 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     useEffect(() => {
         let mounted = true;
 
-        // Get initial session
+        // Get initial session with retry logic
+        const getSessionWithTimeout = async (timeout: number): Promise<{ session: any } | null> => {
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Auth timeout')), timeout)
+            );
+
+            try {
+                const { data: { session } } = await Promise.race([
+                    supabase.auth.getSession(),
+                    timeoutPromise
+                ]) as Awaited<ReturnType<typeof supabase.auth.getSession>>;
+                return { session };
+            } catch {
+                return null;
+            }
+        };
+
         const initializeAuth = async () => {
             try {
                 console.log('🔄 Initializing auth...');
 
-                // Add timeout to prevent infinite loading
-                const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Auth timeout')), 5000)
-                );
+                // First attempt with 5 second timeout
+                let result = await getSessionWithTimeout(5000);
 
-                const sessionPromise = supabase.auth.getSession();
-
-                const { data: { session } } = await Promise.race([
-                    sessionPromise,
-                    timeoutPromise
-                ]) as Awaited<typeof sessionPromise>;
-
-                console.log('🔄 Session result:', session ? 'User found' : 'No session');
+                // If first attempt times out, retry with longer timeout
+                if (!result) {
+                    console.log('🔄 First attempt timed out, retrying...');
+                    result = await getSessionWithTimeout(10000);
+                }
 
                 if (!mounted) return;
 
-                if (session?.user) {
-                    const avatarUrl = await fetchAvatarUrl(session.user.id);
+                if (result?.session?.user) {
+                    console.log('🔄 Session found, fetching avatar...');
+                    const avatarUrl = await fetchAvatarUrl(result.session.user.id);
                     if (!mounted) return;
-                    setUser(mapSupabaseUser(session.user, avatarUrl));
+                    setUser(mapSupabaseUser(result.session.user, avatarUrl));
+                    console.log('🔄 User authenticated');
+                } else {
+                    console.log('🔄 No session found');
                 }
             } catch (error) {
                 // Ignore AbortError (happens during React Strict Mode remount)
@@ -88,7 +103,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     return;
                 }
                 console.error('Error getting session:', error);
-                // Still set loading to false even on error
             } finally {
                 console.log('🔄 Auth initialization complete');
                 if (mounted) {
