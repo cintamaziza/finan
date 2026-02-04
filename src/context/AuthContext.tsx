@@ -124,18 +124,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const login = async (email: string, password: string): Promise<{ error: AuthError | null }> => {
         setIsLoading(true);
 
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
+        try {
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
 
-        if (error) {
+            if (error) {
+                setIsLoading(false);
+                return { error };
+            }
+
+            // Explicitly set user after successful login
+            if (data?.user) {
+                const avatarUrl = await fetchAvatarUrl(data.user.id);
+                setUser(mapSupabaseUser(data.user, avatarUrl));
+            }
+
             setIsLoading(false);
-            return { error };
+            return { error: null };
+        } catch (err) {
+            setIsLoading(false);
+            return { error: { message: 'Login failed', name: 'AuthError' } as AuthError };
         }
-
-        // User will be set by onAuthStateChange listener
-        return { error: null };
     };
 
     const register = async (
